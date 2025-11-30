@@ -324,6 +324,7 @@
         <select id="recipe-select"></select>
         <button id="new-recipe" class="secondary">Новый чек-лист</button>
         <button id="duplicate-recipe" class="secondary">Дублировать</button>
+        <button id="delete-recipe" class="danger" title="Удалить чек-лист">🗑</button>
         <button id="drive-login" class="secondary drive-btn">
           <span class="drive-logo"></span>
           <span class="drive-text">Sync via Drive</span>
@@ -391,7 +392,7 @@
           <li>Если блок ингредиентов включён, в шагах можно использовать плейсхолдеры <code>@ing1</code>, <code>@ing2</code> и т.п. — они подставят количество и название ингредиента в зависимости от веса.</li>
           <li>Ингредиенты можно редактировать: менять названия/количество, добавлять новые и удалять ненужные. Для нового ингредиента автоматически появится плейсхолдер <code>@ingN</code>.</li>
           <li>Галочка = зачёркнутый, выполненный шаг. Можно скрывать выполненные.</li>
-          <li>Перетаскивание шагов: мышкой или пальцем (тащим за строку — на некоторых устройствах может работать только мышкой).</li>
+          <li>Перетаскивание шагов: мышкой или пальцем (на некоторых устройствах drag&drop может вести себя по-разному).</li>
           <li>Долгое нажатие по тексту шага (или Ctrl/Cmd+клик) — выделить/снять. Кнопка «Удалить выбранные» — удалить.</li>
           <li>Кнопка «Экспорт в HTML» сохраняет текущий чек-лист как отдельный HTML-файл.</li>
           <li>Кнопка Sync via Drive включает синхронизацию через AppData в твоём Google Drive.</li>
@@ -401,7 +402,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = 'cook-checklists-with-ingredients-v18';
+    const STORAGE_KEY = 'cook-checklists-with-ingredients-v19';
 
     const DEFAULT_INGREDIENTS = [
       { id: 'ing1', label: 'творога',  base: 50, unit: 'г' },
@@ -540,8 +541,8 @@
       } catch (e) {}
     }
 
-    // будет переопределена ниже, чтобы ещё и Drive дергать
     function saveAll() {
+      // будет переопределена ниже, после инициализации Drive
       saveAllBase();
     }
 
@@ -614,7 +615,8 @@
         const amount = ing.base * factor;
         const formatted = formatNumber(amount);
         const token = '@' + ing.id;
-        const re = new RegExp(token + '\\\\b', 'g');
+        // ВАЖНО: одна обратная косая, а не две — чтобы \b был границей слова
+        const re = new RegExp(token + '\\b', 'g');
         const replacement = formatted + ' ' + ing.unit + ' ' + ing.label;
         result = result.replace(re, replacement);
       });
@@ -941,6 +943,34 @@
       renderList();
     });
 
+    // Удаление чек-листа (минималистично)
+    document.getElementById('delete-recipe').addEventListener('click', () => {
+      if (!recipes.length) return;
+      if (recipes.length === 1) {
+        if (!confirm('Это единственный чек-лист. Очистить его?')) return;
+        const r = recipes[0];
+        r.steps = [];
+        if (r.useIngredients) r.ingredients = [];
+        saveAll();
+        updateRecipeSelect();
+        updateTitle();
+        updateIngredientsUI();
+        renderList();
+        return;
+      }
+      const r = getCurrentRecipe();
+      if (!r) return;
+      if (!confirm('Удалить текущий чек-лист "' + r.title + '"?')) return;
+      recipes = recipes.filter(rec => rec.id !== r.id);
+      currentRecipeId = recipes[0].id;
+      selectedIds.clear();
+      saveAll();
+      updateRecipeSelect();
+      updateTitle();
+      updateIngredientsUI();
+      renderList();
+    });
+
     document.getElementById('title').addEventListener('click', () => {
       const r = getCurrentRecipe();
       if (!r) return;
@@ -1085,8 +1115,7 @@
     function escapeHtml(str) {
       return String(str)
         .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
+        .replace(/</g, '&lt;/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
     }
@@ -1395,10 +1424,9 @@
       });
     })();
 
-    // Подменяем saveAll, чтобы ещё и в Drive сохранять
-    const _origSaveAll = saveAllBase;
+    const _origSaveAllBase = saveAllBase;
     saveAll = function() {
-      _origSaveAll();
+      _origSaveAllBase();
       scheduleDriveSave();
     };
 
@@ -1427,7 +1455,7 @@
       updateIngredientsUI();
       updateToggleCompletedButton();
       renderList();
-      // Попробуем тихо переподключить Drive, если доступ уже был выдан
+      // Попробуем тихо переподключить Drive, если доступ уже был выдан и сессия жива
       setTimeout(autoConnectDrive, 800);
     }
 
