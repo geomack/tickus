@@ -322,7 +322,7 @@
     <div class="top-bar">
       <div class="recipe-row">
         <select id="recipe-select"></select>
-        <button id="new-recipe" class="secondary">Новый чек-лист</button>
+        <button id="new-recipe" class="secondary">Новый</button>
         <button id="duplicate-recipe" class="secondary">Дублировать</button>
         <button id="delete-recipe" class="danger" title="Удалить чек-лист">🗑</button>
         <button id="drive-login" class="secondary drive-btn">
@@ -387,13 +387,13 @@
       </button>
       <div id="howto-content" class="howto-content">
         <ul>
-          <li>Вверху можно переключаться между чек-листами, создавать новый и дублировать текущий.</li>
+          <li>Вверху можно переключаться между чек-листами, создавать новый, дублировать и удалять текущий.</li>
           <li>Клик по названию — переименовать текущий чек-лист.</li>
           <li>Если блок ингредиентов включён, в шагах можно использовать плейсхолдеры <code>@ing1</code>, <code>@ing2</code> и т.п. — они подставят количество и название ингредиента в зависимости от веса.</li>
-          <li>Ингредиенты можно редактировать: менять названия/количество, добавлять новые и удалять ненужные. Для нового ингредиента автоматически появится плейсхолдер <code>@ingN</code>.</li>
+          <li>Ингредиенты можно редактировать: менять названия/количество, добавлять новые и удалять ненужные. Для нового ингредиента автоматически появляется плейсхолдер <code>@ingN</code>.</li>
           <li>Галочка = зачёркнутый, выполненный шаг. Можно скрывать выполненные.</li>
-          <li>Перетаскивание шагов: мышкой или пальцем (на некоторых устройствах drag&drop может вести себя по-разному).</li>
-          <li>Долгое нажатие по тексту шага (или Ctrl/Cmd+клик) — выделить/снять. Кнопка «Удалить выбранные» — удалить.</li>
+          <li>Перетаскивание шагов: мышкой или пальцем (на некоторых устройствах поведение drag&drop может отличаться).</li>
+          <li>Долгое нажатие по тексту шага (или Ctrl/Cmd+клик) — выделить/снять. Кнопка «Удалить выбранные» — удалить шаги.</li>
           <li>Кнопка «Экспорт в HTML» сохраняет текущий чек-лист как отдельный HTML-файл.</li>
           <li>Кнопка Sync via Drive включает синхронизацию через AppData в твоём Google Drive.</li>
         </ul>
@@ -402,7 +402,10 @@
   </div>
 
   <script>
-    const STORAGE_KEY = 'cook-checklists-with-ingredients-v19';
+    // --- ЛОКАЛЬНОЕ ХРАНИЛИЩЕ ---
+
+    // ОСТАВЛЯЕМ тот же ключ, что в рабочей версии, чтобы вернуть старые чек-листы
+    const STORAGE_KEY = 'cook-checklists-with-ingredients-v18';
 
     const DEFAULT_INGREDIENTS = [
       { id: 'ing1', label: 'творога',  base: 50, unit: 'г' },
@@ -482,8 +485,11 @@
           let ingredients;
           if (Array.isArray(r.ingredients) && r.ingredients.length) {
             ingredients = cloneIngredients(r.ingredients);
+          } else if (useIng) {
+            // если включены ингредиенты, но список пуст → подставим дефолтные
+            ingredients = cloneIngredients(DEFAULT_INGREDIENTS);
           } else {
-            ingredients = useIng ? [] : [];
+            ingredients = [];
           }
           const steps = Array.isArray(r.steps) && r.steps.length
             ? r.steps.map(s => ({
@@ -541,8 +547,8 @@
       } catch (e) {}
     }
 
+    // будет переопределена после инициализации Drive
     function saveAll() {
-      // будет переопределена ниже, после инициализации Drive
       saveAllBase();
     }
 
@@ -557,8 +563,8 @@
 
     function ensureRecipeIngredients(recipe) {
       if (!recipe.useIngredients) return;
-      if (!Array.isArray(recipe.ingredients)) {
-        recipe.ingredients = [];
+      if (!Array.isArray(recipe.ingredients) || !recipe.ingredients.length) {
+        recipe.ingredients = cloneIngredients(DEFAULT_INGREDIENTS);
       }
     }
 
@@ -607,6 +613,7 @@
 
     function renderTemplate(template, recipe) {
       if (!recipe.useIngredients) return template;
+      ensureRecipeIngredients(recipe);
       if (!Array.isArray(recipe.ingredients) || !recipe.ingredients.length) return template;
       let result = template;
       const factor = getScale(recipe);
@@ -615,8 +622,8 @@
         const amount = ing.base * factor;
         const formatted = formatNumber(amount);
         const token = '@' + ing.id;
-        // ВАЖНО: одна обратная косая, а не две — чтобы \b был границей слова
-        const re = new RegExp(token + '\\b', 'g');
+        // ВАЖНО: одна обратная косая в строке → \b в RegExp (граница слова)
+        const re = new RegExp(token + "\\b", "g");
         const replacement = formatted + ' ' + ing.unit + ' ' + ing.label;
         result = result.replace(re, replacement);
       });
@@ -646,15 +653,19 @@
       r.ingredients.forEach((ing, index) => {
         const item = document.createElement('div');
         item.className = 'ingredients-item';
+
         const nameSpan = document.createElement('span');
         nameSpan.className = 'ingredients-item-name';
         nameSpan.textContent = `Ингредиент ${index+1} (@${ing.id}): ${ing.label}`;
+
         const amtSpan = document.createElement('span');
         amtSpan.className = 'ingredients-item-amount';
         const scaled = ing.base * factor;
         amtSpan.textContent = formatNumber(scaled) + ' ' + ing.unit;
+
         const actions = document.createElement('span');
         actions.className = 'ingredients-item-actions';
+
         const editBtn = document.createElement('button');
         editBtn.type = 'button';
         editBtn.textContent = '✎';
@@ -668,10 +679,12 @@
           ensureRecipeIngredients(rr);
           const ingRef = rr.ingredients[index];
           if (!ingRef) return;
+
           const newLabel = prompt('Название ингредиента (род.падеж: "творога", "сметаны"):', ingRef.label);
           if (newLabel === null) return;
           const trimmedLabel = newLabel.trim();
           if (trimmedLabel) ingRef.label = trimmedLabel;
+
           const basePrompt = 'Базовое количество для ' +
             (rr.baseWeight || 200) + ' г блюда (' + ingRef.base + ' ' + ingRef.unit + '):';
           const newBaseStr = prompt(basePrompt, ingRef.base);
@@ -681,14 +694,17 @@
               ingRef.base = val;
             }
           }
+
           const newUnitStr = prompt('Единица измерения ("г" или "шт"):', ingRef.unit);
           if (newUnitStr !== null && newUnitStr.trim()) {
             ingRef.unit = newUnitStr.trim();
           }
+
           saveAll();
           updateIngredientsUI();
           renderList();
         });
+
         const delBtn = document.createElement('button');
         delBtn.type = 'button';
         delBtn.textContent = '✕';
@@ -706,6 +722,7 @@
           updateIngredientsUI();
           renderList();
         });
+
         actions.appendChild(editBtn);
         actions.appendChild(delBtn);
         item.appendChild(nameSpan);
@@ -714,6 +731,8 @@
         listEl.appendChild(item);
       });
     }
+
+    // --- ШАГИ / UI ---
 
     function clearSelection() {
       selectedIds.clear();
@@ -732,24 +751,6 @@
       if (li) {
         li.classList.toggle('selected', selectedIds.has(id));
       }
-    }
-
-    function updateStepsFromDom() {
-      const r = getCurrentRecipe();
-      if (!r) return;
-      const ids = Array.from(document.querySelectorAll('#checklist li.step'))
-        .map(li => li.dataset.id);
-      const map = new Map(r.steps.map(s => [s.id, s]));
-      const newSteps = [];
-      ids.forEach(id => {
-        const s = map.get(id);
-        if (s) newSteps.push(s);
-      });
-      r.steps.forEach(s => {
-        if (!ids.includes(s.id)) newSteps.push(s);
-      });
-      r.steps = newSteps;
-      saveAll();
     }
 
     let dragSrcIndex = null;
@@ -865,6 +866,7 @@
         li.draggable = true;
         li.dataset.index = index;
         li.dataset.id = step.id;
+
         li.addEventListener('dragstart', handleDragStart);
         li.addEventListener('dragover', handleDragOver);
         li.addEventListener('drop', handleDrop);
@@ -873,7 +875,9 @@
         li.addEventListener('touchmove', handleRowTouchMove, { passive: true });
         li.addEventListener('touchend', handleRowTouchEnd, { passive: true });
         li.addEventListener('touchcancel', handleRowTouchEnd, { passive: true });
+
         const label = document.createElement('label');
+
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'step-checkbox';
@@ -893,16 +897,20 @@
             renderList();
           }
         });
+
         const span = document.createElement('span');
         span.textContent = renderTemplate(step.template || '', r);
         span.classList.add('editable-hint');
         makeEditable(span, step.id, index);
+
         label.appendChild(checkbox);
         label.appendChild(span);
         li.appendChild(label);
         ul.appendChild(li);
       });
     }
+
+    // --- Обработчики кнопок чек-листа ---
 
     document.getElementById('add-step').addEventListener('click', () => {
       const r = getCurrentRecipe();
@@ -943,7 +951,8 @@
       renderList();
     });
 
-    // Удаление чек-листа (минималистично)
+    // --- Удаление чек-листа ---
+
     document.getElementById('delete-recipe').addEventListener('click', () => {
       if (!recipes.length) return;
       if (recipes.length === 1) {
@@ -970,6 +979,8 @@
       updateIngredientsUI();
       renderList();
     });
+
+    // --- Название и переключение чек-листов ---
 
     document.getElementById('title').addEventListener('click', () => {
       const r = getCurrentRecipe();
@@ -1047,6 +1058,8 @@
       renderList();
     });
 
+    // --- Ингредиенты: добавление и изменение веса ---
+
     document.getElementById('add-ingredient').addEventListener('click', () => {
       const r = getCurrentRecipe();
       if (!r) return;
@@ -1082,8 +1095,10 @@
       const chevron = document.getElementById('ingredients-chevron');
       const desiredInput = document.getElementById('desired-weight');
       if (!toggle || !body || !chevron || !desiredInput) return;
+
       body.classList.remove('open');
       chevron.textContent = '▾';
+
       toggle.addEventListener('click', () => {
         const isOpen = body.classList.contains('open');
         if (isOpen) {
@@ -1094,6 +1109,7 @@
           chevron.textContent = '▴';
         }
       });
+
       const onWeightChange = () => {
         const r = getCurrentRecipe();
         if (!r) return;
@@ -1111,13 +1127,15 @@
       desiredInput.addEventListener('change', onWeightChange);
     })();
 
-    // Экспорт в статичный HTML
+    // --- Экспорт в статичный HTML ---
+
     function escapeHtml(str) {
       return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
     function buildExportHtmlForCurrentRecipe() {
@@ -1126,6 +1144,7 @@
       const title = r.title || 'Чек-лист';
       const weight = r.currentWeight || r.baseWeight || 200;
       const baseWeight = r.baseWeight || 200;
+
       let ingredientsBlock = '';
       if (r.useIngredients && Array.isArray(r.ingredients) && r.ingredients.length) {
         const factor = getScale(r);
@@ -1138,14 +1157,16 @@
               escapeHtml(ing.label) + ' — ' + escapeHtml(amountStr) +
             '</li>'
           );
-        }).join('\\n');
+        }).join('\n');
+
         ingredientsBlock =
-          '<section>\\n' +
-          '  <h2>Ингредиенты</h2>\\n' +
-          '  <p>Базовый рецепт: ' + escapeHtml(baseWeight) + ' г, текущий вес: ' + escapeHtml(weight) + ' г.</p>\\n' +
-          '  <ul>\\n' + items + '\\n  </ul>\\n' +
-          '</section>\\n';
+          '<section>\n' +
+          '  <h2>Ингредиенты</h2>\n' +
+          '  <p>Базовый рецепт: ' + escapeHtml(baseWeight) + ' г, текущий вес: ' + escapeHtml(weight) + ' г.</p>\n' +
+          '  <ul>\n' + items + '\n  </ul>\n' +
+          '</section>\n';
       }
+
       const stepsHtml = r.steps.map((step) => {
         const text = renderTemplate(step.template || '', r);
         return (
@@ -1156,42 +1177,44 @@
             '</label>' +
           '</li>'
         );
-      }).join('\\n');
+      }).join('\n');
+
       const fullHtml =
-        '<!DOCTYPE html>\\n' +
-        '<html lang="ru">\\n' +
-        '<head>\\n' +
-        '  <meta charset="UTF-8">\\n' +
-        '  <title>' + escapeHtml(title) + '</title>\\n' +
-        '  <meta name="viewport" content="width=device-width, initial-scale=1">\\n' +
-        '  <style>\\n' +
-        '    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 16px; background:#f4f4f4; }\\n' +
-        '    .wrap { max-width: 700px; margin: 0 auto; background:#fff; padding:16px; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.1); }\\n' +
-        '    h1 { font-size: 22px; margin-top:0; }\\n' +
-        '    h2 { font-size: 18px; margin-bottom:6px; }\\n' +
-        '    ul { list-style:none; padding:0; }\\n' +
-        '    li { margin-bottom:6px; }\\n' +
-        '    li label { display:flex; gap:8px; align-items:flex-start; }\\n' +
-        '    li input[type="checkbox"] { margin-top:3px; }\\n' +
-        '    li span { flex:1; }\\n' +
-        '    section { margin-bottom:12px; }\\n' +
-        '    small { color:#666; }\\n' +
-        '  </style>\\n' +
-        '</head>\\n' +
-        '<body>\\n' +
-        '  <div class="wrap">\\n' +
-        '    <h1>' + escapeHtml(title) + '</h1>\\n' +
+        '<!DOCTYPE html>\n' +
+        '<html lang="ru">\n' +
+        '<head>\n' +
+        '  <meta charset="UTF-8">\n' +
+        '  <title>' + escapeHtml(title) + '</title>\n' +
+        '  <meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+        '  <style>\n' +
+        '    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 16px; background:#f4f4f4; }\n' +
+        '    .wrap { max-width: 700px; margin: 0 auto; background:#fff; padding:16px; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.1); }\n' +
+        '    h1 { font-size: 22px; margin-top:0; }\n' +
+        '    h2 { font-size: 18px; margin-bottom:6px; }\n' +
+        '    ul { list-style:none; padding:0; }\n' +
+        '    li { margin-bottom:6px; }\n' +
+        '    li label { display:flex; gap:8px; align-items:flex-start; }\n' +
+        '    li input[type="checkbox"] { margin-top:3px; }\n' +
+        '    li span { flex:1; }\n' +
+        '    section { margin-bottom:12px; }\n' +
+        '    small { color:#666; }\n' +
+        '  </style>\n' +
+        '</head>\n' +
+        '<body>\n' +
+        '  <div class="wrap">\n' +
+        '    <h1>' + escapeHtml(title) + '</h1>\n' +
         (ingredientsBlock ? ingredientsBlock : '') +
-        '    <section>\\n' +
-        '      <h2>Шаги</h2>\\n' +
-        '      <ul>\\n' + stepsHtml + '\\n      </ul>\\n' +
-        '    </section>\\n' +
-        '    <section>\\n' +
-        '      <small>Этот файл — статичная копия чек-листа. Изменения здесь не влияют на оригинальный файл.</small>\\n' +
-        '    </section>\\n' +
-        '  </div>\\n' +
-        '</body>\\n' +
-        '</html>\\n';
+        '    <section>\n' +
+        '      <h2>Шаги</h2>\n' +
+        '      <ul>\n' + stepsHtml + '\n      </ul>\n' +
+        '    </section>\n' +
+        '    <section>\n' +
+        '      <small>Этот файл — статичная копия чек-листа Tickus — самые удобные чек-листы. Изменения здесь не влияют на оригинальный файл.</small>\n' +
+        '    </section>\n' +
+        '  </div>\n' +
+        '</body>\n' +
+        '</html>\n';
+
       return fullHtml;
     }
 
@@ -1205,7 +1228,7 @@
       const url = URL.createObjectURL(blob);
       const r = getCurrentRecipe();
       let filename = (r && r.title ? r.title : 'checklist') + '.html';
-      filename = filename.replace(/[/\\\\?%*:|"<>]/g, '_');
+      filename = filename.replace(/[/\\?%*:|"<>]/g, '_');
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
@@ -1217,7 +1240,8 @@
       }, 0);
     });
 
-    // === Google Drive AppData sync ===
+    // --- Google Drive AppData sync ---
+
     const GDRIVE_CLIENT_ID = '612476760456-m8p3ng34jq06mrlavktq7aevbgeknvrh.apps.googleusercontent.com';
     const GDRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
     const DRIVE_FILENAME = 'tickus_data.json';
@@ -1385,7 +1409,7 @@
     }
 
     function connectDrive() {
-      if (!GDRIVE_CLIENT_ID || GDRIVE_CLIENT_ID.indexOf('CLIENT_ID') !== -1) {
+      if (!GDRIVE_CLIENT_ID || GDRIVE_CLIENT_ID.indexOf('CLIENT_ID') !== -1 || GDRIVE_CLIENT_ID.indexOf('ВСТАВЬ') === 0) {
         alert('Сначала вставь свой CLIENT_ID из Google Cloud в константу GDRIVE_CLIENT_ID внутри файла.');
         return;
       }
@@ -1399,7 +1423,7 @@
     }
 
     function autoConnectDrive() {
-      if (!GDRIVE_CLIENT_ID || GDRIVE_CLIENT_ID.indexOf('CLIENT_ID') !== -1) {
+      if (!GDRIVE_CLIENT_ID || GDRIVE_CLIENT_ID.indexOf('CLIENT_ID') !== -1 || GDRIVE_CLIENT_ID.indexOf('ВСТАВЬ') === 0) {
         return;
       }
       if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) {
@@ -1430,6 +1454,8 @@
       scheduleDriveSave();
     };
 
+    // --- How to use ---
+
     (function initHowTo() {
       const btn = document.getElementById('howto-toggle');
       const content = document.getElementById('howto-content');
@@ -1442,10 +1468,11 @@
       });
     })();
 
+    // --- Инициализация ---
+
     function init() {
       loadAll();
-      const r0 = recipes[0];
-      if (!r0) {
+      if (!recipes.length) {
         const rec = createRecipe('Чек-лист: запеканка', defaultStepsTemplate, 200, 200, true);
         recipes = [rec];
         currentRecipeId = rec.id;
@@ -1455,7 +1482,6 @@
       updateIngredientsUI();
       updateToggleCompletedButton();
       renderList();
-      // Попробуем тихо переподключить Drive, если доступ уже был выдан и сессия жива
       setTimeout(autoConnectDrive, 800);
     }
 
