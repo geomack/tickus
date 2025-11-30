@@ -1485,6 +1485,28 @@
       setTimeout(autoConnectDrive, 800);
     }
 
+    // --- ХАК: тихий автоконнект Google Drive после первого действия пользователя ---
+(function setupUserGestureAutoConnect() {
+  let tried = false;
+
+  async function handler() {
+    if (tried) return;
+    tried = true;
+
+    try {
+      autoConnectDrive();
+    } catch (e) {
+      console.warn("Silent Drive autoconnect error:", e);
+    }
+
+    document.removeEventListener('click', handler);
+    document.removeEventListener('touchstart', handler);
+  }
+
+  document.addEventListener('click', handler);
+  document.addEventListener('touchstart', handler, { passive: true });
+})();
+
     window.addEventListener('load', init);
   </script>
 </body>
