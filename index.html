@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Чек-листы с ингредиентами (v16)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f4f4;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .top-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .recipe-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .recipe-row select {
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      min-width: 160px;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 4px 0 8px;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    h1:hover { text-decoration: underline; }
+
+    /* Ингредиенты */
+    .ingredients-card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .ingredients-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .ingredients-header-title {
+      font-size: 14px;
+    }
+
+    .ingredients-header-title strong {
+      font-weight: 600;
+    }
+
+    .ingredients-header-weight {
+      font-size: 13px;
+      color: #555;
+    }
+
+    .ingredients-chevron {
+      font-size: 16px;
+      margin-left: 8px;
+    }
+
+    .ingredients-body {
+      border-top: 1px solid #eee;
+      padding: 10px 12px 12px;
+      display: none;
+      font-size: 13px;
+    }
+
+    .ingredients-body.open {
+      display: block;
+    }
+
+    .ingredients-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .ingredients-row label {
+      font-size: 13px;
+    }
+
+    .ingredients-row input[type="number"] {
+      width: 110px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 13px;
+    }
+
+    .ingredients-list {
+      margin-top: 4px;
+    }
+
+    .ingredients-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      gap: 6px;
+    }
+
+    .ingredients-item-name {
+      font-size: 13px;
+      flex: 1;
+    }
+
+    .ingredients-item-amount {
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .ingredients-item-actions button {
+      font-size: 11px;
+      padding: 2px 6px;
+      margin-left: 4px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #1976d2;
+      color: #fff;
+      transition: opacity 0.2s;
+    }
+
+    button.secondary { background: #666; }
+    button.danger { background: #c62828; }
+    button:active { opacity: 0.7; }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li.step {
+      background: #fff;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      padding: 8px 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      will-change: transform;
+    }
+
+    .step.dragging {
+      opacity: 0.85;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+
+    .step.placeholder {
+      border: 2px dashed #bbb;
+      background: #f8f8f8;
+    }
+
+    .step.completed span {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+
+    .step.selected {
+      border: 2px solid #c62828;
+      background: #ffebee;
+    }
+
+    .step.label {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: grab;
+    }
+
+    .step input[type="checkbox"] {
+      margin-top: 2px;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .step span {
+      flex: 1;
+      font-size: 15px;
+      line-height: 1.3;
+      word-wrap: break-word;
+    }
+
+    .step span.editable-hint {
+      border-bottom: 1px dashed transparent;
+    }
+
+    .step span.editable-hint:hover {
+      border-bottom-color: #ccc;
+    }
+
+    .footer {
+      margin-top: 16px;
+      font-size: 12px;
+      color: #777;
+      text-align: center;
+    }
+
+    @media (min-width: 768px) {
+      h1 { font-size: 24px; }
+      button { font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="top-bar">
+      <div class="recipe-row">
+        <span>Рецепт:</span>
+        <select id="recipe-select"></select>
+        <button id="new-recipe" class="secondary">Новый чек-лист</button>
+        <button id="duplicate-recipe" class="secondary">Дублировать</button>
+      </div>
+      <h1 id="title">Чек-лист</h1>
+    </div>
+
+    <!-- Блок ингредиентов -->
+    <div class="ingredients-card" id="ingredients-card">
+      <div class="ingredients-header" id="ingredients-toggle">
+        <div class="ingredients-header-title">
+          <strong>Ингредиенты</strong>
+          <div class="ingredients-header-weight">
+            на <span id="current-weight-label">200</span> г (<span id="recipe-name-label">блюда</span>)
+          </div>
+        </div>
+        <div class="ingredients-chevron" id="ingredients-chevron">▾</div>
+      </div>
+      <div class="ingredients-body" id="ingredients-body">
+        <div class="ingredients-row">
+          <label for="desired-weight">Желаемый вес блюда, г:</label>
+          <input type="number" id="desired-weight" min="1" step="10" value="200">
+        </div>
+        <div class="ingredients-row" style="margin-bottom:4px;">
+          <small>
+            Базовый рецепт рассчитан на <span id="base-weight-label">200</span> г.
+            Количество ингредиентов и граммы в шагах масштабируются пропорционально.
+          </small>
+        </div>
+        <div class="ingredients-row" style="margin-bottom:4px;">
+          <small>
+            В шагах можно использовать плейсхолдеры <code>@ing1</code>, <code>@ing2</code> и т.п.
+          </small>
+        </div>
+        <div class="ingredients-list" id="ingredients-list">
+          <!-- сюда подставляются ингредиенты -->
+        </div>
+        <div class="ingredients-row" style="margin-top:8px;">
+          <button id="add-ingredient" type="button" class="secondary">Добавить ингредиент</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="add-step">Добавить шаг</button>
+      <button id="clear-all" class="secondary">Снять все отметки</button>
+      <button id="toggle-completed" class="secondary">Скрыть выполненные</button>
+      <button id="delete-selected" class="danger">Удалить выбранные</button>
+      <button id="export-html" class="secondary">Экспорт в HTML</button>
+    </div>
+
+    <ul id="checklist"></ul>
+
+    <div class="footer">
+      ▸ Вверху можно переключаться между чек-листами, создавать новый и дублировать текущий.<br>
+      ▸ Клик по названию — переименовать текущий чек-лист.<br>
+      ▸ При создании нового чек-листа система спросит, нужен ли блок «Ингредиенты». Если нет — чек-лист работает как обычный todo, без ингредиентов и веса.<br>
+      ▸ Если блок ингредиентов включён, в шагах можно использовать плейсхолдеры <code>@ing1</code>, <code>@ing2</code> и т.п. — они подставят количество и название ингредиента в зависимости от веса.<br>
+      ▸ Ингредиенты можно редактировать: менять названия/количество, добавлять новые и удалять ненужные. Для нового ингредиента автоматически появится плейсхолдер <code>@ingN</code>.<br>
+      ▸ Галочка = зачёркнутый, выполненный шаг. Можно скрывать выполненные.<br>
+      ▸ Перетаскивание шагов: мышкой или пальцем (тащим за строку).<br>
+      ▸ Долгое нажатие по тексту шага (или Ctrl/Cmd+клик) — выделить/снять. Кнопка «Удалить выбранные» — удалить.<br>
+      ▸ Кнопка «Экспорт в HTML» сохраняет текущий чек-лист (с ингредиентами и текущим весом) как отдельный простой HTML-файл.
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'cook-checklists-with-ingredients-v16';
+
+    const DEFAULT_INGREDIENTS = [
+      { id: 'ing1', label: 'творога',  base: 50, unit: 'г' },
+      { id: 'ing2', label: 'сметаны',  base: 50, unit: 'г' },
+      { id: 'ing3', label: 'яиц',      base: 1,  unit: 'шт' },
+      { id: 'ing4', label: 'сахара',   base: 20, unit: 'г' },
+      { id: 'ing5', label: 'соли',     base: 2,  unit: 'г' }
+    ];
+
+    const defaultStepsTemplate = [
+      'Подготовил форму для запеканки (смазал маслом / застелил бумагой).',
+      'Добавил @ing1.',
+      'Добавил @ing2.',
+      'Добавил @ing3 и хорошо перемешал.',
+      'Добавил @ing4 и @ing5.',
+      'Переложил массу в форму.',
+      'Поставил в духовку (например, 180°C).',
+      'Подождал 20 минут (или нужное время).',
+      'Проверил готовность и достал запеканку.'
+    ];
+
+    let recipes = [];
+    let currentRecipeId = null;
+    let hideCompleted = false;
+    let selectedIds = new Set();
+
+    const LONG_PRESS_MS = 600;
+    let longPressTimer = null;
+    let longPressTargetId = null;
+    let suppressNextClickId = null;
+
+    let touchDraggingEl = null;
+    let touchPlaceholderEl = null;
+    let touchOffsetY = 0;
+
+    function genId(prefix='id') {
+      return prefix + '-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    }
+
+    function cloneIngredients(src) {
+      return (src || []).map((ing, i) => ({
+        id: ing.id || ('ing' + (i + 1)),
+        label: ing.label || ('ингредиент ' + (i + 1)),
+        base: (typeof ing.base === 'number' && isFinite(ing.base) && ing.base > 0) ? ing.base : 10,
+        unit: ing.unit || 'г'
+      }));
+    }
+
+    function createStepFromTemplate(template) {
+      return {
+        id: genId('step'),
+        template,
+        completed: false
+      };
+    }
+
+    function createRecipe(title, templates = null, baseWeight = 200, currentWeight = 200, useIngredients = true, withDefaultIngredients = false) {
+      const steps = (templates || []).map(t => createStepFromTemplate(t));
+      return {
+        id: genId('recipe'),
+        title: title || 'Чек-лист',
+        baseWeight: baseWeight || 200,
+        currentWeight: currentWeight || baseWeight || 200,
+        useIngredients: !!useIngredients,
+        ingredients: useIngredients
+          ? (withDefaultIngredients ? cloneIngredients(DEFAULT_INGREDIENTS) : [])
+          : [],
+        steps
+      };
+    }
+
+    function normalizeLoaded(data) {
+      if (!data || typeof data !== 'object') {
+        const rec = createRecipe('Чек-лист: запеканка', defaultStepsTemplate, 200, 200, true, true);
+        return {
+          recipes: [rec],
+          currentRecipeId: rec.id,
+          hideCompleted: false
+        };
+      }
+      let loadedRecipes = data.recipes;
+      if (!Array.isArray(loadedRecipes) || !loadedRecipes.length) {
+        const rec = createRecipe('Чек-лист: запеканка', defaultStepsTemplate, 200, 200, true, true);
+        loadedRecipes = [rec];
+      } else {
+        loadedRecipes = loadedRecipes.map((r, idx) => {
+          const useIng = (r.useIngredients === false) ? false : true;
+          let ingredients;
+          if (Array.isArray(r.ingredients) && r.ingredients.length) {
+            ingredients = cloneIngredients(r.ingredients);
+          } else {
+            ingredients = useIng ? [] : [];
+          }
+
+          const steps = Array.isArray(r.steps) && r.steps.length
+            ? r.steps.map(s => {
+                const tmpl = s.template || s.text || '';
+                return {
+                  id: s.id || genId('step'),
+                  template: tmpl,
+                  completed: !!s.completed
+                };
+              })
+            : [];
+
+          return {
+            id: r.id || genId('recipe'),
+            title: r.title || ('Рецепт ' + (idx+1)),
+            baseWeight: r.baseWeight || 200,
+            currentWeight: r.currentWeight || r.baseWeight || 200,
+            useIngredients: useIng,
+            ingredients,
+            steps
+          };
+        });
+      }
+      let currentId = data.currentRecipeId;
+      if (!loadedRecipes.find(r => r.id === currentId)) {
+        currentId = loadedRecipes[0].id;
+      }
+      const hide = !!data.hideCompleted;
+      return {
+        recipes: loadedRecipes,
+        currentRecipeId: currentId,
+        hideCompleted: hide
+      };
+    }
+
+    function loadAll() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        const norm = normalizeLoaded(parsed);
+        recipes = norm.recipes;
+        currentRecipeId = norm.currentRecipeId;
+        hideCompleted = norm.hideCompleted;
+      } catch (e) {
+        const rec = createRecipe('Чек-лист: запеканка', defaultStepsTemplate, 200, 200, true, true);
+        recipes = [rec];
+        currentRecipeId = rec.id;
+        hideCompleted = false;
+      }
+    }
+
+    function saveAll() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          recipes,
+          currentRecipeId,
+          hideCompleted
+        }));
+      } catch (e) {}
+    }
+
+    function getCurrentRecipe() {
+      let r = recipes.find(r => r.id === currentRecipeId);
+      if (!r) {
+        r = recipes[0];
+        if (r) currentRecipeId = r.id;
+      }
+      return r;
+    }
+
+    function ensureRecipeIngredients(recipe) {
+      if (!recipe.useIngredients) return;
+      if (!Array.isArray(recipe.ingredients)) {
+        recipe.ingredients = [];
+      }
+    }
+
+    function updateRecipeSelect() {
+      const select = document.getElementById('recipe-select');
+      select.innerHTML = '';
+      recipes.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = r.title + (r.useIngredients ? ' (с инг.)' : '');
+        if (r.id === currentRecipeId) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function updateTitle() {
+      const r = getCurrentRecipe();
+      const h1 = document.getElementById('title');
+      const nameLabel = document.getElementById('recipe-name-label');
+      if (r && h1) {
+        h1.textContent = r.title;
+        if (nameLabel) {
+          const parts = r.title.split(':');
+          nameLabel.textContent = parts[1] ? parts[1].trim().toLowerCase() : r.title.toLowerCase();
+        }
+      }
+    }
+
+    function updateToggleCompletedButton() {
+      const btn = document.getElementById('toggle-completed');
+      if (!btn) return;
+      btn.textContent = hideCompleted ? 'Показать все' : 'Скрыть выполненные';
+    }
+
+    function getScale(recipe) {
+      const base = recipe.baseWeight || 200;
+      const cur = recipe.currentWeight || base;
+      return cur / base;
+    }
+
+    function formatNumber(n) {
+      if (!isFinite(n)) return '';
+      if (Math.abs(n - Math.round(n)) < 0.01) return String(Math.round(n));
+      return n.toFixed(1);
+    }
+
+    function renderTemplate(template, recipe) {
+      if (!recipe.useIngredients) return template;
+      if (!Array.isArray(recipe.ingredients) || !recipe.ingredients.length) return template;
+
+      let result = template;
+      const factor = getScale(recipe);
+      if (!isFinite(factor) || factor <= 0) return template;
+
+      recipe.ingredients.forEach((ing) => {
+        const amount = ing.base * factor;
+        const formatted = formatNumber(amount);
+        const token = '@' + ing.id;
+        const re = new RegExp(token + '\\b', 'g');
+        const replacement = formatted + ' ' + ing.unit + ' ' + ing.label;
+        result = result.replace(re, replacement);
+      });
+
+      return result;
+    }
+
+    function updateIngredientsUI() {
+      const r = getCurrentRecipe();
+      const card = document.getElementById('ingredients-card');
+      if (!card) return;
+
+      if (!r || !r.useIngredients) {
+        card.style.display = 'none';
+        return;
+      }
+
+      card.style.display = 'block';
+      ensureRecipeIngredients(r);
+
+      const weightLabel = document.getElementById('current-weight-label');
+      const baseLabel = document.getElementById('base-weight-label');
+      const inputWeight = document.getElementById('desired-weight');
+      const listEl = document.getElementById('ingredients-list');
+
+      if (!weightLabel || !baseLabel || !inputWeight || !listEl) return;
+
+      weightLabel.textContent = String(r.currentWeight || r.baseWeight || 200);
+      baseLabel.textContent = String(r.baseWeight || 200);
+      inputWeight.value = r.currentWeight || r.baseWeight || 200;
+
+      const factor = getScale(r);
+      listEl.innerHTML = '';
+
+      r.ingredients.forEach((ing, index) => {
+        const item = document.createElement('div');
+        item.className = 'ingredients-item';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'ingredients-item-name';
+        nameSpan.textContent = `Ингредиент ${index+1} (@${ing.id}): ${ing.label}`;
+
+        const amtSpan = document.createElement('span');
+        amtSpan.className = 'ingredients-item-amount';
+        const scaled = ing.base * factor;
+        amtSpan.textContent = formatNumber(scaled) + ' ' + ing.unit;
+
+        const actions = document.createElement('span');
+        actions.className = 'ingredients-item-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.textContent = '✎';
+        editBtn.className = 'secondary';
+        editBtn.style.fontSize = '13px';
+        editBtn.style.padding = '2px 6px';
+
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const rr = getCurrentRecipe();
+          if (!rr) return;
+          ensureRecipeIngredients(rr);
+          const ingRef = rr.ingredients[index];
+          if (!ingRef) return;
+
+          const newLabel = prompt('Название ингредиента (род.падеж: "творога", "сметаны"):', ingRef.label);
+          if (newLabel === null) return;
+          const trimmedLabel = newLabel.trim();
+          if (trimmedLabel) ingRef.label = trimmedLabel;
+
+          const basePrompt = 'Базовое количество для ' +
+            (rr.baseWeight || 200) + ' г блюда (' + ingRef.base + ' ' + ingRef.unit + '):';
+          const newBaseStr = prompt(basePrompt, ingRef.base);
+          if (newBaseStr !== null) {
+            const val = parseFloat(String(newBaseStr).replace(',', '.'));
+            if (isFinite(val) && val > 0) {
+              ingRef.base = val;
+            }
+          }
+
+          const newUnitStr = prompt('Единица измерения ("г" или "шт"):', ingRef.unit);
+          if (newUnitStr !== null && newUnitStr.trim()) {
+            ingRef.unit = newUnitStr.trim();
+          }
+
+          saveAll();
+          updateIngredientsUI();
+          renderList();
+        });
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.textContent = '✕';
+        delBtn.className = 'danger';
+        delBtn.style.fontSize = '11px';
+        delBtn.style.padding = '2px 6px';
+
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const rr = getCurrentRecipe();
+          if (!rr) return;
+          if (!confirm('Удалить этот ингредиент?')) return;
+          if (!Array.isArray(rr.ingredients)) return;
+          rr.ingredients.splice(index, 1);
+          saveAll();
+          updateIngredientsUI();
+          renderList();
+        });
+
+        actions.appendChild(editBtn);
+        actions.appendChild(delBtn);
+
+        item.appendChild(nameSpan);
+        item.appendChild(amtSpan);
+        item.appendChild(actions);
+        listEl.appendChild(item);
+      });
+    }
+
+    function clearSelection() {
+      selectedIds.clear();
+      document.querySelectorAll('li.step.selected').forEach(li => {
+        li.classList.remove('selected');
+      });
+    }
+
+    function toggleSelectionById(id) {
+      if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+      } else {
+        selectedIds.add(id);
+      }
+      const li = document.querySelector('li.step[data-id="' + id + '"]');
+      if (li) {
+        li.classList.toggle('selected', selectedIds.has(id));
+      }
+    }
+
+    function updateStepsFromDom() {
+      const r = getCurrentRecipe();
+      if (!r) return;
+      const ids = Array.from(document.querySelectorAll('#checklist li.step'))
+        .filter(li => !li.classList.contains('placeholder'))
+        .map(li => li.dataset.id);
+
+      const map = new Map(r.steps.map(s => [s.id, s]));
+      const newSteps = [];
+      ids.forEach(id => {
+        const s = map.get(id);
+        if (s) newSteps.push(s);
+      });
+      r.steps.forEach(s => {
+        if (!ids.includes(s.id)) newSteps.push(s);
+      });
+      r.steps = newSteps;
+      saveAll();
+    }
+
+    let dragSrcIndex = null;
+
+    function handleDragStart(e) {
+      if (hideCompleted) return;
+      const li = e.currentTarget;
+      dragSrcIndex = Number(li.dataset.index);
+      li.classList.add('dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+      }
+    }
+
+    function handleDragOver(e) {
+      if (hideCompleted) return;
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move';
+      }
+    }
+
+    function handleDrop(e) {
+      if (hideCompleted) return;
+      e.preventDefault();
+      const li = e.currentTarget;
+      const destIndex = Number(li.dataset.index);
+      if (dragSrcIndex === null || destIndex === dragSrcIndex) return;
+
+      const r = getCurrentRecipe();
+      if (!r) return;
+      const moved = r.steps.splice(dragSrcIndex, 1)[0];
+      r.steps.splice(destIndex, 0, moved);
+      saveAll();
+      renderList();
+    }
+
+    function handleDragEnd(e) {
+      const li = e.currentTarget;
+      li.classList.remove('dragging');
+      dragSrcIndex = null;
+    }
+
+    function startTouchDrag(li, touch) {
+      const r = getCurrentRecipe();
+      if (!r) return;
+      touchDraggingEl = li;
+      li.classList.add('dragging');
+
+      const rect = li.getBoundingClientRect();
+      touchOffsetY = touch.clientY - rect.top;
+
+      touchPlaceholderEl = document.createElement('li');
+      touchPlaceholderEl.className = 'step placeholder';
+      touchPlaceholderEl.style.height = rect.height + 'px';
+
+      const ul = li.parentNode;
+      ul.insertBefore(touchPlaceholderEl, li.nextSibling);
+
+      li.style.position = 'fixed';
+      li.style.left = rect.left + 'px';
+      li.style.top = rect.top + 'px';
+      li.style.width = rect.width + 'px';
+      li.style.zIndex = 1000;
+      li.style.pointerEvents = 'none';
+    }
+
+    function moveTouchDrag(touch) {
+      if (!touchDraggingEl) return;
+      const y = touch.clientY;
+      const newTop = y - touchOffsetY;
+      touchDraggingEl.style.top = newTop + 'px';
+
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (!el) return;
+
+      const liOver = el.closest('li.step');
+      if (!liOver || liOver === touchDraggingEl || liOver === touchPlaceholderEl) return;
+
+      const ul = touchPlaceholderEl.parentNode;
+      const overRect = liOver.getBoundingClientRect();
+      const middleY = overRect.top + overRect.height / 2;
+
+      if (y < middleY) {
+        ul.insertBefore(touchPlaceholderEl, liOver);
+      } else {
+        ul.insertBefore(touchPlaceholderEl, liOver.nextSibling);
+      }
+    }
+
+    function endTouchDrag() {
+      if (!touchDraggingEl) return;
+
+      const li = touchDraggingEl;
+      const ul = touchPlaceholderEl.parentNode;
+
+      ul.insertBefore(li, touchPlaceholderEl);
+      ul.removeChild(touchPlaceholderEl);
+
+      li.classList.remove('dragging');
+      li.style.position = '';
+      li.style.left = '';
+      li.style.top = '';
+      li.style.width = '';
+      li.style.zIndex = '';
+      li.style.pointerEvents = '';
+
+      touchDraggingEl = null;
+      touchPlaceholderEl = null;
+
+      updateStepsFromDom();
+    }
+
+    function handleRowTouchStart(e) {
+      if (hideCompleted) return;
+      const li = e.currentTarget;
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      if (e.target.tagName === 'SPAN') {
+        const stepId = li.dataset.id;
+        longPressTargetId = stepId;
+        longPressTimer = setTimeout(() => {
+          longPressTimer = null;
+          if (longPressTargetId) {
+            toggleSelectionById(longPressTargetId);
+            suppressNextClickId = longPressTargetId;
+            longPressTargetId = null;
+          }
+        }, LONG_PRESS_MS);
+        return;
+      }
+
+      if (e.target.tagName === 'INPUT') return;
+      startTouchDrag(li, touch);
+    }
+
+    function handleRowTouchMove(e) {
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      if (longPressTimer) {
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (!el) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+          longPressTargetId = null;
+        }
+        return;
+      }
+
+      if (touchDraggingEl) {
+        e.preventDefault();
+        moveTouchDrag(touch);
+      }
+    }
+
+    function handleRowTouchEnd(e) {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+        longPressTargetId = null;
+      }
+      if (touchDraggingEl) {
+        endTouchDrag();
+      }
+    }
+
+    function makeEditable(span, stepId, index) {
+      span.addEventListener('click', (e) => {
+        if (suppressNextClickId === stepId) {
+          suppressNextClickId = null;
+          return;
+        }
+        e.stopPropagation();
+
+        if (e.ctrlKey || e.metaKey) {
+          toggleSelectionById(stepId);
+          return;
+        }
+
+        const r = getCurrentRecipe();
+        if (!r) return;
+        const tmpl = r.steps[index].template || '';
+        const updated = prompt('Изменить шаг (можно использовать @ing1, @ing2 и т.п.):', tmpl);
+        if (updated === null) return;
+        const trimmed = updated.trim();
+        if (!trimmed) return;
+        r.steps[index].template = trimmed;
+        saveAll();
+        renderList();
+      });
+    }
+
+    function renderList() {
+      const r = getCurrentRecipe();
+      const ul = document.getElementById('checklist');
+      ul.innerHTML = '';
+      if (!r) return;
+
+      r.steps.forEach((step, index) => {
+        if (hideCompleted && step.completed) return;
+
+        const li = document.createElement('li');
+        li.className = 'step';
+        if (step.completed) li.classList.add('completed');
+        if (selectedIds.has(step.id)) li.classList.add('selected');
+        li.draggable = true;
+        li.dataset.index = index;
+        li.dataset.id = step.id;
+
+        li.addEventListener('dragstart', handleDragStart);
+        li.addEventListener('dragover', handleDragOver);
+        li.addEventListener('drop', handleDrop);
+        li.addEventListener('dragend', handleDragEnd);
+
+        li.addEventListener('touchstart', handleRowTouchStart, { passive: false });
+        li.addEventListener('touchmove', handleRowTouchMove, { passive: false });
+        li.addEventListener('touchend', handleRowTouchEnd);
+        li.addEventListener('touchcancel', handleRowTouchEnd);
+
+        const label = document.createElement('label');
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'step-checkbox';
+        checkbox.dataset.index = index;
+        checkbox.checked = !!step.completed;
+
+        checkbox.addEventListener('change', () => {
+          const rr = getCurrentRecipe();
+          if (!rr) return;
+          rr.steps[index].completed = checkbox.checked;
+          if (checkbox.checked) {
+            li.classList.add('completed');
+          } else {
+            li.classList.remove('completed');
+          }
+          saveAll();
+          if (hideCompleted) {
+            renderList();
+          }
+        });
+
+        const span = document.createElement('span');
+        span.textContent = renderTemplate(step.template || '', r);
+        span.classList.add('editable-hint');
+        makeEditable(span, step.id, index);
+
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        li.appendChild(label);
+        ul.appendChild(li);
+      });
+    }
+
+    document.getElementById('add-step').addEventListener('click', () => {
+      const r = getCurrentRecipe();
+      if (!r) return;
+      const text = prompt('Текст нового шага (можно использовать @ing1, @ing2 и т.п.):');
+      if (!text) return;
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      r.steps.push(createStepFromTemplate(trimmed));
+      saveAll();
+      renderList();
+    });
+
+    document.getElementById('clear-all').addEventListener('click', () => {
+      const r = getCurrentRecipe();
+      if (!r) return;
+      r.steps.forEach(s => s.completed = false);
+      saveAll();
+      document.querySelectorAll('.step').forEach(li => li.classList.remove('completed'));
+      document.querySelectorAll('.step-checkbox').forEach(cb => { cb.checked = false; });
+    });
+
+    document.getElementById('toggle-completed').addEventListener('click', () => {
+      hideCompleted = !hideCompleted;
+      updateToggleCompletedButton();
+      saveAll();
+      renderList();
+    });
+
+    document.getElementById('delete-selected').addEventListener('click', () => {
+      const r = getCurrentRecipe();
+      if (!r) return;
+      if (!selectedIds.size) return;
+      if (!confirm('Удалить выбранные шаги?')) return;
+      r.steps = r.steps.filter(step => !selectedIds.has(step.id));
+      selectedIds.clear();
+      saveAll();
+      renderList();
+    });
+
+    document.getElementById('title').addEventListener('click', () => {
+      const r = getCurrentRecipe();
+      if (!r) return;
+      const updated = prompt('Изменить название чек-листа:', r.title);
+      if (updated === null) return;
+      const trimmed = updated.trim();
+      if (!trimmed) return;
+      r.title = trimmed;
+      saveAll();
+      updateTitle();
+      updateRecipeSelect();
+    });
+
+    document.getElementById('recipe-select').addEventListener('change', (e) => {
+      const newId = e.target.value;
+      if (!recipes.find(r => r.id === newId)) return;
+      currentRecipeId = newId;
+      selectedIds.clear();
+      saveAll();
+      updateRecipeSelect();
+      updateTitle();
+      updateIngredientsUI();
+      updateToggleCompletedButton();
+      renderList();
+    });
+
+    document.getElementById('new-recipe').addEventListener('click', () => {
+      const name = prompt('Название нового чек-листа:', 'Новый чек-лист');
+      if (!name) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+
+      const useIng = confirm('Включить блок ингредиентов для этого чек-листа? Нажми "Отмена", если это обычный todo.');
+      const r = createRecipe(trimmed, [], 200, 200, useIngredients = useIng, withDefaultIngredients = false);
+      recipes.push(r);
+      currentRecipeId = r.id;
+      selectedIds.clear();
+      saveAll();
+      updateRecipeSelect();
+      updateTitle();
+      updateIngredientsUI();
+      renderList();
+    });
+
+    document.getElementById('duplicate-recipe').addEventListener('click', () => {
+      const r = getCurrentRecipe();
+      if (!r) return;
+      const baseName = 'Копия: ' + r.title;
+      const name = prompt('Название дубликата чек-листа:', baseName) || baseName;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const copy = {
+        id: genId('recipe'),
+        title: trimmed,
+        baseWeight: r.baseWeight || 200,
+        currentWeight: r.currentWeight || r.baseWeight || 200,
+        useIngredients: !!r.useIngredients,
+        ingredients: r.useIngredients ? cloneIngredients(r.ingredients) : [],
+        steps: r.steps.map(s => ({
+          id: genId('step'),
+          template: s.template || '',
+          completed: false
+        }))
+      };
+      recipes.push(copy);
+      currentRecipeId = copy.id;
+      selectedIds.clear();
+      saveAll();
+      updateRecipeSelect();
+      updateTitle();
+      updateIngredientsUI();
+      renderList();
+    });
+
+    document.getElementById('add-ingredient').addEventListener('click', () => {
+      const r = getCurrentRecipe();
+      if (!r) return;
+      if (!r.useIngredients) {
+        alert('Для этого чек-листа ингредиенты отключены.');
+        return;
+      }
+      ensureRecipeIngredients(r);
+
+      const index = r.ingredients.length;
+      const newId = 'ing' + (index + 1);
+
+      const label = prompt('Название нового ингредиента (род.падеж: "корицы")');
+      if (!label || !label.trim()) return;
+
+      const baseStr = prompt('Базовое количество для ' + (r.baseWeight || 200) + ' г блюда (например, 10):');
+      if (!baseStr) return;
+      const baseVal = parseFloat(String(baseStr).replace(',', '.'));
+      if (!isFinite(baseVal) || baseVal <= 0) return;
+
+      const unitStr = prompt('Единица измерения ("г" или "шт"):', 'г') || 'г';
+
+      r.ingredients.push({
+        id: newId,
+        label: label.trim(),
+        base: baseVal,
+        unit: unitStr.trim()
+      });
+
+      saveAll();
+      updateIngredientsUI();
+      renderList();
+      alert('Теперь ты можешь использовать @' + newId + ' в шагах этого чек-листа.');
+    });
+
+    (function initIngredientsBlock() {
+      const toggle = document.getElementById('ingredients-toggle');
+      const body = document.getElementById('ingredients-body');
+      const chevron = document.getElementById('ingredients-chevron');
+      const desiredInput = document.getElementById('desired-weight');
+
+      if (!toggle || !body || !chevron || !desiredInput) return;
+
+      body.classList.remove('open');
+      chevron.textContent = '▾';
+
+      toggle.addEventListener('click', () => {
+        const isOpen = body.classList.contains('open');
+        if (isOpen) {
+          body.classList.remove('open');
+          chevron.textContent = '▾';
+        } else {
+          body.classList.add('open');
+          chevron.textContent = '▴';
+        }
+      });
+
+      const onWeightChange = () => {
+        const r = getCurrentRecipe();
+        if (!r) return;
+        if (!r.useIngredients) return;
+        let val = parseFloat(desiredInput.value);
+        if (!isFinite(val) || val <= 0) {
+          val = r.baseWeight || 200;
+        }
+        if (val > 50000) val = 50000;
+        r.currentWeight = Math.round(val);
+        updateIngredientsUI();
+        renderList();
+        saveAll();
+      };
+
+      desiredInput.addEventListener('change', onWeightChange);
+    })();
+
+    // ---------- Экспорт в HTML (статичный чек-лист) ----------
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function buildExportHtmlForCurrentRecipe() {
+      const r = getCurrentRecipe();
+      if (!r) return null;
+
+      const title = r.title || 'Чек-лист';
+      const weight = r.currentWeight || r.baseWeight || 200;
+      const baseWeight = r.baseWeight || 200;
+
+      let ingredientsBlock = '';
+      if (r.useIngredients && Array.isArray(r.ingredients) && r.ingredients.length) {
+        const factor = getScale(r);
+        const items = r.ingredients.map((ing, idx) => {
+          const amount = ing.base * factor;
+          const amountStr = formatNumber(amount) + ' ' + ing.unit;
+          return (
+            '<li>' +
+              '<strong>' + escapeHtml('Ингредиент ' + (idx+1)) + ' (@' + escapeHtml(ing.id) + '):</strong> ' +
+              escapeHtml(ing.label) + ' — ' + escapeHtml(amountStr) +
+            '</li>'
+          );
+        }).join('\n');
+
+        ingredientsBlock =
+          '<section>\n' +
+          '  <h2>Ингредиенты</h2>\n' +
+          '  <p>Базовый рецепт: ' + escapeHtml(baseWeight) + ' г, текущий вес: ' + escapeHtml(weight) + ' г.</p>\n' +
+          '  <ul>\n' + items + '\n  </ul>\n' +
+          '</section>\n';
+      }
+
+      const stepsHtml = r.steps.map((step) => {
+        const text = renderTemplate(step.template || '', r);
+        return (
+          '<li>' +
+            '<label>' +
+              '<input type="checkbox"> ' +
+              '<span>' + escapeHtml(text) + '</span>' +
+            '</label>' +
+          '</li>'
+        );
+      }).join('\n');
+
+      const fullHtml =
+        '<!DOCTYPE html>\n' +
+        '<html lang="ru">\n' +
+        '<head>\n' +
+        '  <meta charset="UTF-8">\n' +
+        '  <title>' + escapeHtml(title) + '</title>\n' +
+        '  <meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+        '  <style>\n' +
+        '    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 16px; background:#f4f4f4; }\n' +
+        '    .wrap { max-width: 700px; margin: 0 auto; background:#fff; padding:16px; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.1); }\n' +
+        '    h1 { font-size: 22px; margin-top:0; }\n' +
+        '    h2 { font-size: 18px; margin-bottom:6px; }\n' +
+        '    ul { list-style:none; padding:0; }\n' +
+        '    li { margin-bottom:6px; }\n' +
+        '    li label { display:flex; gap:8px; align-items:flex-start; }\n' +
+        '    li input[type="checkbox"] { margin-top:3px; }\n' +
+        '    li span { flex:1; }\n' +
+        '    section { margin-bottom:12px; }\n' +
+        '    small { color:#666; }\n' +
+        '  </style>\n' +
+        '</head>\n' +
+        '<body>\n' +
+        '  <div class="wrap">\n' +
+        '    <h1>' + escapeHtml(title) + '</h1>\n' +
+        (ingredientsBlock ? ingredientsBlock : '') +
+        '    <section>\n' +
+        '      <h2>Шаги</h2>\n' +
+        '      <ul>\n' + stepsHtml + '\n      </ul>\n' +
+        '    </section>\n' +
+        '    <section>\n' +
+        '      <small>Этот файл — статичная копия чек-листа. Изменения здесь не влияют на оригинальный файл с рецептами.</small>\n' +
+        '    </section>\n' +
+        '  </div>\n' +
+        '</body>\n' +
+        '</html>\n';
+
+      return fullHtml;
+    }
+
+    document.getElementById('export-html').addEventListener('click', () => {
+      const html = buildExportHtmlForCurrentRecipe();
+      if (!html) {
+        alert('Нет активного чек-листа для экспорта.');
+        return;
+      }
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+
+      const r = getCurrentRecipe();
+      let filename = (r && r.title ? r.title : 'checklist') + '.html';
+      filename = filename.replace(/[/\\?%*:|"<>]/g, '_');
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+    });
+
+    // ---------- Инициализация ----------
+
+    function init() {
+      loadAll();
+      updateRecipeSelect();
+      updateTitle();
+      updateIngredientsUI();
+      updateToggleCompletedButton();
+      renderList();
+    }
+
+    window.addEventListener('load', init);
+  </script>
+</body>
+</html>
